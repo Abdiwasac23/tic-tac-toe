@@ -98,16 +98,21 @@ def move():
     data = request.get_json() or {}
     board = data.get('board')
     ai_level = data.get('level')
+    mode = data.get('mode', 'single')
 
     # Basic validation: ensure board is a list of length 9 and level is present
     if not isinstance(board, list) or len(board) != 9:
         return jsonify({"error": "invalid board"}), 400
-    if ai_level not in ("easy", "medium", "hard"):
-        return jsonify({"error": "invalid level"}), 400
+    if mode == 'single':
+        if ai_level not in ("easy", "medium", "hard"):
+            return jsonify({"error": "invalid level"}), 400
+    else:
+        # two-player mode: ignore ai_level
+        ai_level = None
 
     # If the player's move already produced a winner, don't let the AI play
     winner = check_winner(board)
-    if not winner:
+    if not winner and mode == 'single':
         move_index = ai_move(board, ai_level)
         if move_index is not None:
             board[move_index] = "O"

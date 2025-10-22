@@ -12,6 +12,12 @@
   </h1>
   
   <div class="flex flex-col md:flex-row items-center gap-4 mb-6">
+    <label for="mode" class="text-xl font-semibold text-gray-200">Mode:</label>
+    <select id="mode" class="bg-gray-800 border border-gray-600 text-teal-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-teal-500">
+      <option value="single">Single-player</option>
+      <option value="two">Two-player (local)</option>
+    </select>
+
     <label for="level" class="text-xl font-semibold text-gray-200">AI Level:</label>
     <select id="level" class="bg-gray-800 border border-gray-600 text-teal-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-teal-500">
       <option>easy</option>
@@ -43,10 +49,11 @@
   </footer>
 
   <script>
-    const boardEl = document.getElementById('board');
+  const boardEl = document.getElementById('board');
     let board = ["", "", "", "", "", "", "", "", ""];
     let playing = true;
     let awaiting = false; // waiting for AI response
+  let currentTurn = 'X'; // for two-player mode
 
     // Create cells without document.write
     for (let i = 0; i < 9; i++) {
@@ -60,13 +67,14 @@
 
     async function sendMove() {
       const level = document.getElementById('level').value;
+      const mode = document.getElementById('mode').value === 'two' ? 'two' : 'single';
       awaiting = true;
       // Visually disable board while awaiting
       boardEl.classList.add('opacity-60', 'pointer-events-none');
       const res = await fetch('/move', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({board, level})
+        body: JSON.stringify({board, level, mode})
       });
       const data = await res.json();
       board = data.board;
@@ -113,9 +121,21 @@
     cells.forEach((cell, i) => {
       cell.addEventListener('click', () => {
         if (!playing || awaiting || board[i] !== "") return;
-        board[i] = "X";
-        updateBoard();
-        sendMove();
+
+        const mode = document.getElementById('mode').value;
+        if (mode === 'two') {
+          // Two-player local: alternate turns locally and ask backend only to evaluate winner/scores
+          board[i] = currentTurn;
+          updateBoard();
+          // send to server to update scores/winner but server will not play AI in two-player mode
+          sendMove();
+          currentTurn = currentTurn === 'X' ? 'O' : 'X';
+        } else {
+          // Single-player: player is always X, server will respond and play O
+          board[i] = "X";
+          updateBoard();
+          sendMove();
+        }
       });
     });
   </script>
