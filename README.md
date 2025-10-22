@@ -1,3 +1,20 @@
+## Running on another device
+
+After downloading or copying the project to a new computer:
+
+1. Make sure Python 3.10+ is installed on the new device.
+2. Open PowerShell (Windows) or Terminal (macOS/Linux) in the project folder.
+3. Run these commands:
+	```powershell
+	python -m venv .venv
+	& .\.venv\Scripts\Activate.ps1
+	pip install -r requirements.txt
+	& .\.venv\Scripts\python.exe app.py
+	```
+	(On macOS/Linux, use `source .venv/bin/activate` and `python app.py` instead.)
+4. Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser.
+
+The game will be ready to play!
 
 
 # Tic Tac Toe
