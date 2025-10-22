@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tic Tac Toe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg-gradient-to-b from-gray-900 to-gray-800 text-white flex flex-col items-center justify-center min-h-screen p-4">
+  <h1 class="text-5xl font-extrabold mb-6 tracking-wide text-teal-400 drop-shadow-lg">
+    🎮 Tic Tac Toe
+  </h1>
+  
+  <div class="flex flex-col md:flex-row items-center gap-4 mb-6">
+    <label for="level" class="text-xl font-semibold text-gray-200">AI Level:</label>
+    <select id="level" class="bg-gray-800 border border-gray-600 text-teal-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-teal-500">
+      <option>easy</option>
+      <option>medium</option>
+      <option>hard</option>
+    </select>
+  </div>
+
+  <div id="board" class="grid grid-cols-3 gap-3 mb-8"></div>
+
+  <div class="text-center space-y-2">
+    <p id="status" class="text-xl font-medium text-teal-400 h-8"></p>
+
+    <div class="flex gap-6 justify-center text-lg">
+      <div class="bg-gray-800 px-4 py-2 rounded-lg">
+        👤 Player: <span id="playerScore" class="text-teal-400 font-semibold">0</span>
+      </div>
+      <div class="bg-gray-800 px-4 py-2 rounded-lg">
+        🤖 AI: <span id="aiScore" class="text-rose-400 font-semibold">0</span>
+      </div>
+      <div class="bg-gray-800 px-4 py-2 rounded-lg">
+        🤝 Draws: <span id="drawScore" class="text-yellow-400 font-semibold">0</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-10 text-sm text-gray-500">
+    Made with 💚 using Flask + Tailwind
+  </footer>
+
+  <script>
+    const boardEl = document.getElementById('board');
+    let board = ["", "", "", "", "", "", "", "", ""];
+    let playing = true;
+    let awaiting = false; // waiting for AI response
+
+    // Create cells without document.write
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center text-4xl font-bold bg-gray-700 hover:bg-teal-500 hover:scale-105 transition-all duration-200 rounded-xl shadow-md cursor-pointer';
+      cell.dataset.index = i;
+      boardEl.appendChild(cell);
+    }
+
+    const cells = document.querySelectorAll('.cell');
+
+    async function sendMove() {
+      const level = document.getElementById('level').value;
+      awaiting = true;
+      // Visually disable board while awaiting
+      boardEl.classList.add('opacity-60', 'pointer-events-none');
+      const res = await fetch('/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({board, level})
+      });
+      const data = await res.json();
+      board = data.board;
+      updateBoard();
+      updateScores(data.scores);
+
+      awaiting = false;
+      boardEl.classList.remove('opacity-60', 'pointer-events-none');
+
+      if (data.winner) {
+        document.getElementById('status').textContent =
+          data.winner === 'draw' ? "🤝 It's a draw!" : `🏆 ${data.winner} wins!`;
+        playing = false;
+        setTimeout(resetBoard, 2000);
+      }
+    }
+
+    function updateBoard() {
+      cells.forEach((cell, i) => {
+        cell.textContent = board[i];
+        // Clean classes first to avoid duplicates
+        cell.classList.remove('text-teal-300', 'text-rose-400');
+        if (board[i] === "X") cell.classList.add("text-teal-300");
+        else if (board[i] === "O") cell.classList.add("text-rose-400");
+      });
+    }
+
+    function updateScores(scores) {
+      document.getElementById('playerScore').textContent = scores.player;
+      document.getElementById('aiScore').textContent = scores.ai;
+      document.getElementById('drawScore').textContent = scores.draw;
+    }
+
+    function resetBoard() {
+      board = ["", "", "", "", "", "", "", "", ""];
+      document.getElementById('status').textContent = "";
+      cells.forEach(c => {
+        c.textContent = "";
+        c.classList.remove("text-teal-300", "text-rose-400");
+      });
+      playing = true;
+    }
+
+    cells.forEach((cell, i) => {
+      cell.addEventListener('click', () => {
+        if (!playing || awaiting || board[i] !== "") return;
+        board[i] = "X";
+        updateBoard();
+        sendMove();
+      });
+    });
+  </script>
+</body>
+</html>
