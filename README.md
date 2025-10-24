@@ -58,4 +58,18 @@ This is a simple web-based Tic Tac Toe game built with Python (Flask) for the ba
 
 Enjoy!
 
+## Deploying (quick)
+If you want to deploy the app to a simple host (Render, Railway, Heroku):
+
+1. Ensure `requirements.txt` includes `gunicorn` (already added).
+2. Add a start command in the host settings or use the `Procfile` provided:
+
+```
+web: gunicorn app:app --bind 0.0.0.0:$PORT
+```
+
+3. Connect your GitHub repo in the host UI and create a new Web Service — the host will build and run the app and give you a public URL.
+
+Note: this project uses the Flask development server locally; gunicorn is used for production-like hosting.
+
 
