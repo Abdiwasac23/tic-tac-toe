@@ -99,23 +99,47 @@ def move():
     board = data.get('board')
     ai_level = data.get('level')
     mode = data.get('mode', 'single')
+    index = data.get('index')
+    player = data.get('player', 'X')
 
-    # Basic validation: ensure board is a list of length 9 and level is present
+    # Basic validation: ensure board is a list of length 9
     if not isinstance(board, list) or len(board) != 9:
         return jsonify({"error": "invalid board"}), 400
+
+    # ensure board items are valid
+    if any(cell not in ('', 'X', 'O') for cell in board):
+        return jsonify({"error": "invalid board contents"}), 400
+
+    # validate index
+    if not isinstance(index, int) or not (0 <= index < 9):
+        return jsonify({"error": "invalid index"}), 400
+
+    # Mode-specific validation
     if mode == 'single':
         if ai_level not in ("easy", "medium", "hard"):
             return jsonify({"error": "invalid level"}), 400
-    else:
-        # two-player mode: ignore ai_level
-        ai_level = None
+        # ensure the player's chosen cell is X and is empty before (client should set X)
+        if board[index] != 'X':
+            return jsonify({"error": "index must contain player's move (X)"}), 400
+        # simple consistency check: X count should be >= O count and difference reasonable
+        x_count = board.count('X')
+        o_count = board.count('O')
+        if x_count - o_count not in (0, 1):
+            return jsonify({"error": "invalid move counts"}), 400
 
-    # If the player's move already produced a winner, don't let the AI play
-    winner = check_winner(board)
-    if not winner and mode == 'single':
-        move_index = ai_move(board, ai_level)
-        if move_index is not None:
-            board[move_index] = "O"
+        # If player's move already produced a winner, don't let the AI play
+        winner = check_winner(board)
+        if not winner:
+            move_index = ai_move(board, ai_level)
+            if move_index is not None and board[move_index] == "":
+                board[move_index] = "O"
+
+    else:
+        # two-player mode: validate player and that the board contains their move at index
+        if player not in ('X', 'O'):
+            return jsonify({"error": "invalid player"}), 400
+        if board[index] != player:
+            return jsonify({"error": "index must contain player's move"}), 400
 
     # Re-check winner after possible AI move
     winner = check_winner(board)

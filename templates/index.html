@@ -65,31 +65,37 @@
 
     const cells = document.querySelectorAll('.cell');
 
-    async function sendMove() {
+    async function sendMove(index) {
       const level = document.getElementById('level').value;
       const mode = document.getElementById('mode').value === 'two' ? 'two' : 'single';
+      const player = currentTurn;
       awaiting = true;
       // Visually disable board while awaiting
       boardEl.classList.add('opacity-60', 'pointer-events-none');
       const res = await fetch('/move', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({board, level, mode})
+        body: JSON.stringify({index, board, level, mode, player})
       });
       const data = await res.json();
-      board = data.board;
-      updateBoard();
-      updateScores(data.scores);
+      if (data.error) {
+        // show error
+        document.getElementById('status').textContent = `Error: ${data.error}`;
+      } else {
+        board = data.board;
+        updateBoard();
+        updateScores(data.scores);
+
+        if (data.winner) {
+          document.getElementById('status').textContent =
+            data.winner === 'draw' ? "🤝 It's a draw!" : `🏆 ${data.winner} wins!`;
+          playing = false;
+          setTimeout(resetBoard, 2000);
+        }
+      }
 
       awaiting = false;
       boardEl.classList.remove('opacity-60', 'pointer-events-none');
-
-      if (data.winner) {
-        document.getElementById('status').textContent =
-          data.winner === 'draw' ? "🤝 It's a draw!" : `🏆 ${data.winner} wins!`;
-        playing = false;
-        setTimeout(resetBoard, 2000);
-      }
     }
 
     function updateBoard() {
@@ -124,17 +130,17 @@
 
         const mode = document.getElementById('mode').value;
         if (mode === 'two') {
-          // Two-player local: alternate turns locally and ask backend only to evaluate winner/scores
+          // Two-player local: set the move locally, then send index and board to server
           board[i] = currentTurn;
           updateBoard();
           // send to server to update scores/winner but server will not play AI in two-player mode
-          sendMove();
+          sendMove(i);
           currentTurn = currentTurn === 'X' ? 'O' : 'X';
         } else {
           // Single-player: player is always X, server will respond and play O
           board[i] = "X";
           updateBoard();
-          sendMove();
+          sendMove(i);
         }
       });
     });
