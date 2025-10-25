@@ -1,7 +1,14 @@
-from flask import Flask, render_template, jsonify, request
+
+from flask import Flask, render_template, jsonify, request, session
 import random
+import uuid
+
 
 app = Flask(__name__)
+app.secret_key = 'replace-this-with-a-random-secret-key'  # Needed for session
+
+# In-memory store for per-session game state (demo only, not for production)
+games = {}
 
 scores = {"player": 0, "ai": 0, "draw": 0}
 
@@ -89,69 +96,99 @@ def ai_move(board, level):
             return random.choice(corner_moves)
         return random.choice(best_moves)
 
+
 @app.route('/')
 def index():
+    # On first visit, create a new game session
+    if 'game_id' not in session:
+        session['game_id'] = str(uuid.uuid4())
     return render_template('index.html')
+
+
+@app.route('/start', methods=['POST'])
+def start():
+    """Start a new game: set mode and level, reset board and scores."""
+    data = request.get_json() or {}
+    mode = data.get('mode', 'single')
+    level = data.get('level', 'easy')
+    game_id = session.get('game_id')
+    if not game_id:
+        game_id = str(uuid.uuid4())
+        session['game_id'] = game_id
+    # Reset game state
+    games[game_id] = {
+        'board': [""] * 9,
+        'turn': 'X',
+        'mode': mode,
+        'level': level,
+        'scores': {"player": 0, "ai": 0, "draw": 0},
+        'winner': None
+    }
+    return jsonify({"ok": True, "board": [""] * 9, "turn": 'X', "mode": mode, "level": level, "scores": {"player": 0, "ai": 0, "draw": 0}})
+
 
 @app.route('/move', methods=['POST'])
 def move():
     data = request.get_json() or {}
-    board = data.get('board')
-    ai_level = data.get('level')
-    mode = data.get('mode', 'single')
     index = data.get('index')
-    player = data.get('player', 'X')
+    game_id = session.get('game_id')
+    if not game_id or game_id not in games:
+        return jsonify({"error": "no active game"}), 400
+    game = games[game_id]
+    board = game['board']
+    turn = game['turn']
+    mode = game['mode']
+    level = game['level']
+    scores = game['scores']
+    winner = game['winner']
 
-    # Basic validation: ensure board is a list of length 9
-    if not isinstance(board, list) or len(board) != 9:
-        return jsonify({"error": "invalid board"}), 400
-
-    # ensure board items are valid
-    if any(cell not in ('', 'X', 'O') for cell in board):
-        return jsonify({"error": "invalid board contents"}), 400
-
-    # validate index
+    # Validate index
     if not isinstance(index, int) or not (0 <= index < 9):
         return jsonify({"error": "invalid index"}), 400
+    if board[index] != "":
+        return jsonify({"error": "cell not empty"}), 400
+    if winner:
+        return jsonify({"error": "game over"}), 400
 
-    # Mode-specific validation
-    if mode == 'single':
-        if ai_level not in ("easy", "medium", "hard"):
-            return jsonify({"error": "invalid level"}), 400
-        # ensure the player's chosen cell is X and is empty before (client should set X)
-        if board[index] != 'X':
-            return jsonify({"error": "index must contain player's move (X)"}), 400
-        # simple consistency check: X count should be >= O count and difference reasonable
-        x_count = board.count('X')
-        o_count = board.count('O')
-        if x_count - o_count not in (0, 1):
-            return jsonify({"error": "invalid move counts"}), 400
+    # Apply player's move
+    board[index] = turn
 
-        # If player's move already produced a winner, don't let the AI play
-        winner = check_winner(board)
-        if not winner:
-            move_index = ai_move(board, ai_level)
-            if move_index is not None and board[move_index] == "":
-                board[move_index] = "O"
-
-    else:
-        # two-player mode: validate player and that the board contains their move at index
-        if player not in ('X', 'O'):
-            return jsonify({"error": "invalid player"}), 400
-        if board[index] != player:
-            return jsonify({"error": "index must contain player's move"}), 400
-
-    # Re-check winner after possible AI move
+    # Check for winner after player's move
     winner = check_winner(board)
     if winner:
+        game['winner'] = winner
         if winner == "X":
             scores["player"] += 1
         elif winner == "O":
             scores["ai"] += 1
         else:
             scores["draw"] += 1
+        return jsonify({"board": board, "winner": winner, "scores": scores, "turn": turn})
 
-    return jsonify({"board": board, "winner": winner, "scores": scores})
+    # If single-player and it's X's turn, AI plays as O
+    if mode == 'single' and turn == 'X':
+        ai_idx = ai_move(board, level)
+        if ai_idx is not None and board[ai_idx] == "":
+            board[ai_idx] = 'O'
+            # Check for winner after AI move
+            winner = check_winner(board)
+            if winner:
+                game['winner'] = winner
+                if winner == "X":
+                    scores["player"] += 1
+                elif winner == "O":
+                    scores["ai"] += 1
+                else:
+                    scores["draw"] += 1
+                game['turn'] = 'X'  # X always starts next game
+                return jsonify({"board": board, "winner": winner, "scores": scores, "turn": 'X'})
+        # If no winner, next turn is X
+        game['turn'] = 'X'
+        return jsonify({"board": board, "winner": None, "scores": scores, "turn": 'X'})
+
+    # Two-player: alternate turns
+    game['turn'] = 'O' if turn == 'X' else 'X'
+    return jsonify({"board": board, "winner": None, "scores": scores, "turn": game['turn']})
 
 if __name__ == '__main__':
     app.run(debug=True)

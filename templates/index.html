@@ -66,36 +66,34 @@
     const cells = document.querySelectorAll('.cell');
 
     async function sendMove(index) {
-      const level = document.getElementById('level').value;
-      const mode = document.getElementById('mode').value === 'two' ? 'two' : 'single';
-      const player = currentTurn;
       awaiting = true;
-      // Visually disable board while awaiting
       boardEl.classList.add('opacity-60', 'pointer-events-none');
-      const res = await fetch('/move', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({index, board, level, mode, player})
-      });
-      const data = await res.json();
-      if (data.error) {
-        // show error
-        document.getElementById('status').textContent = `Error: ${data.error}`;
-      } else {
-        board = data.board;
-        updateBoard();
-        updateScores(data.scores);
-
-        if (data.winner) {
-          document.getElementById('status').textContent =
-            data.winner === 'draw' ? "🤝 It's a draw!" : `🏆 ${data.winner} wins!`;
-          playing = false;
-          setTimeout(resetBoard, 2000);
+      try {
+        const res = await fetch('/move', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({index})
+        });
+        const data = await res.json();
+        if (data.error) {
+          document.getElementById('status').textContent = `Error: ${data.error}`;
+        } else {
+          board = data.board;
+          updateBoard();
+          updateScores(data.scores);
+          if (data.winner) {
+            document.getElementById('status').textContent =
+              data.winner === 'draw' ? "🤝 It's a draw!" : `🏆 ${data.winner} wins!`;
+            playing = false;
+            setTimeout(startGame, 2000);
+          }
         }
+      } catch (e) {
+        document.getElementById('status').textContent = 'Network error';
+      } finally {
+        awaiting = false;
+        boardEl.classList.remove('opacity-60', 'pointer-events-none');
       }
-
-      awaiting = false;
-      boardEl.classList.remove('opacity-60', 'pointer-events-none');
     }
 
     function updateBoard() {
@@ -114,15 +112,25 @@
       document.getElementById('drawScore').textContent = scores.draw;
     }
 
-    function resetBoard() {
-      board = ["", "", "", "", "", "", "", "", ""];
-      document.getElementById('status').textContent = "";
-      cells.forEach(c => {
-        c.textContent = "";
-        c.classList.remove("text-teal-300", "text-rose-400");
-      });
-      playing = true;
-    }
+      async function startGame() {
+        const mode = document.getElementById('mode').value;
+        const level = document.getElementById('level').value;
+        document.getElementById('status').textContent = '';
+        try {
+          const res = await fetch('/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode, level})
+          });
+          const data = await res.json();
+          board = data.board;
+          updateBoard();
+          updateScores(data.scores);
+          playing = true;
+        } catch (e) {
+          document.getElementById('status').textContent = 'Network error';
+        }
+      }
 
     cells.forEach((cell, i) => {
       cell.addEventListener('click', () => {
@@ -144,6 +152,8 @@
         }
       });
     });
+      // On load, start new game
+      startGame();
   </script>
 </body>
 </html>
